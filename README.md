@@ -65,5 +65,103 @@ public class DBConnectionUtilTest {
 
 여러개의 드라이버가 있지만 드라이버 메니저가 이를 구분하여 알맞는 드라이버를 선택하게된다.
 1. url 정보를 보고 드라이버메니저가 처리할 수 있는지를 확인(ex. h2로 시작하는 url인 경우, 맞는 url일 때까지 라이브러리에 있는 드라이버를 모두 확인)
-2. 확인후 실제 컨넥션 연결하여 확인함 
-3. 
+2. 확인후 실제 컨넥션 연결하여 확인함
+
+
+3. jdbc connection 쿼리 작성
+```
+@Slf4j
+public class MemberRepositoryV0 {
+
+	public Member save(Member member) throws SQLException {
+		String sql = "insert into member(member_id, money) values (?,?)";
+
+		Connection con = null; // -> sql 쿼리문을 그대로 넣음
+		PreparedStatement pstm = null; // -> 파라미터를 바인딩
+
+
+		//sql exception이 발상햄으로 try catch 사용
+		try {
+			con = getConnection();
+			pstm = con.prepareStatement(sql);
+			pstm.setString(1, member.getMemberId());
+			pstm.setInt(2, member.getMoney());
+
+			pstm.executeUpdate(); // 준비된 쿼리를 실행하는 부분 -> 쿼리 실행으로 인해 영향을 받은 row의 수를 리턴
+
+			return member;
+		} catch (SQLException e) {
+			log.error("db error", e);
+			throw e;
+		} finally { // finally에서 close를 해야 한다. -> 항상 호출되는 것을 보장해도록
+			close(con, pstm, null);
+		}
+	}
+
+	//사용한 자원들을 모두 닫아줘야 한다.
+	private void close(Connection con, Statement statement, ResultSet resultSet) {
+
+		if (resultSet != null) {
+			try {
+				resultSet.close(); // 외부 리소스를 쓰는 것임으로 close로 닫아주어야 함(연결 부분을)
+			} catch (SQLException e) {
+				log.info("error", e);
+			}
+		}
+
+
+		if (statement != null) {
+			try {
+				statement.close(); // exception 발생시 ->  이 try, catch 문에서 끝남으로 아래 con.close에는 영향을 주지 않는다.
+			} catch (SQLException e) {
+				log.info("error", e);
+			}
+		}
+
+		if (con != null) {
+			try {
+				con.close(); // 외부 리소스를 쓰는 것임으로 close로 닫아주어야 함(연결 부분을)
+			} catch (SQLException e) {
+				log.info("error", e);
+			}
+		}
+	}
+```
+1. 자원을 사용하였으면 모두 close()로 닫아 주어야 한다
+2. finally 부분에 선언하여 exception이 발생하여도 close가 실행될 수 있도록 한다.
+3. select 시
+```
+   public Member findById(String memberId) throws SQLException {
+   String sql = "select * from member where member_id = ?";
+
+   	Connection con = null; // finally catch 때문에 밖에다 선언 해야 함
+   	PreparedStatement pstmt = null;
+   	ResultSet res = null;
+   	
+   	try {
+   		con = getConnection();
+   		pstmt = con.prepareStatement(sql);
+   		pstmt.setString(1, memberId);
+   		
+   		res = pstmt.executeQuery(); // select는 executeQueyr로 해야함
+   		
+   		if (res.next()) {
+   			Member member = new Member();
+   			member.setMemberId(res.getString("member_id"));
+   			member.setMoney(res.getInt("money"));
+   			return member;
+   		} else {
+   			throw new NoSuchElementException("member not found memberId = " + memberId);
+   		}
+   		
+   	} catch (SQLException e) {
+   		log.error("db error", e);
+   		throw e;
+   	} finally {
+   		close(con, pstmt,res);
+   	}
+   }
+```
+1. select 구문 실행시 executeQuery() 로 실행해야한다.
+2. ResultSet 내부에는 커서가 있다. 따라서 res.next() 를 최초 한번 호출해야 커서가 이동하며
+3. 커서가 없다면 데이터가 없다는 뜻이다.
