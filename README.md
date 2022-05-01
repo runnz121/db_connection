@@ -165,3 +165,45 @@ public class MemberRepositoryV0 {
 1. select 구문 실행시 executeQuery() 로 실행해야한다.
 2. ResultSet 내부에는 커서가 있다. 따라서 res.next() 를 최초 한번 호출해야 커서가 이동하며
 3. 커서가 없다면 데이터가 없다는 뜻이다.
+
+```
+@Slf4j
+class MemberRepositoryV0Test {
+
+	MemberRepositoryV0 memberRepositoryV0 = new MemberRepositoryV0();
+
+	@Test
+	void curd() throws SQLException {
+
+		//save
+		Member member = new Member("memberV6", 10000);
+		memberRepositoryV0.save(member);
+
+		//findById
+		Member findMemeber = memberRepositoryV0.findById(member.getMemberId());
+
+		//@Data //equalsAndHashcode를 @data가 같이 구현해준다.
+		log.info("findMember = {}", findMemeber);
+		log.info("member != findMember {}", member == findMemeber);
+		log.info("member equals findMember {}", member.equals(findMemeber));
+		assertThat(findMemeber).isEqualTo(member);
+
+		//update: money :10000 -> 20000
+		memberRepositoryV0.update(member.getMemberId(), 20000);
+		Member updateMember = memberRepositoryV0.findById(member.getMemberId());
+		//assertThat(updateMember).isEqualTo(member);
+		assertThat(updateMember.getMoney()).isEqualTo(20000); //이걸로 해야함
+
+		//delete -> assertThatThrowBy -> 예외를 던지는 assert -> 예외를 던져야 테스트가 성공 -> 예외가 남으로 반복적으로 실행이 가능!!
+		//하지만 중간에 다른예외로 익셉션을 터트리면 하위 메소드가 호출이 되지 않는다 .
+		memberRepositoryV0.delete(member.getMemberId());
+		assertThatThrownBy(() -> memberRepositoryV0.findById(member.getMemberId())).isInstanceOf(NoSuchElementException.class);
+
+		//이미 삭제된 멤버는 확인할 수 없음으로
+		//Member deletedMember = memberRepositoryV0.findById("memberV6");
+
+	}
+}
+```
+1. assertThatThrownBy -> 예외가 터져야 성공하는 경우(중복 방지값이 들어가는 테스트를 할 경우 여러번 실행 가능!)
+2. 하지만 중간에 얘외가 터지는 다른 검증로직이 들어갈 경우 하위 로직까지 실행되지 않음으로 문제가 있음
