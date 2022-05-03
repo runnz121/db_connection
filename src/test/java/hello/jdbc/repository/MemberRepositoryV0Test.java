@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import java.sql.SQLException;
 import java.util.NoSuchElementException;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import hello.jdbc.domain.Member;
@@ -15,6 +16,7 @@ class MemberRepositoryV0Test {
 
 	MemberRepositoryV0 memberRepositoryV0 = new MemberRepositoryV0();
 
+	@DisplayName("crud 테스트")
 	@Test
 	void curd() throws SQLException {
 
