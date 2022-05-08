@@ -1,6 +1,6 @@
 ### 공부하는 이유
 1. spring에서 DB에 접근하는 기술은 점진적으로 발전해왔다.
-2. 기술중에는 옛날 기술인 jdbc, mybatis 등 부터 최신 기술인 jpa, querydslr과 같이 많은 기술들이 있는데,
+2. 기술중에는 옛날 기술인 jdbc, mybatis 등 부터 최신 기술인 jpa, querydsl과 같이 많은 기술들이 있는데,
 3. 왜 이 기술들이 이렇게 발전해 왔는지에 대해 공부하고, 어떤 부분이 개선되어왔는지 알기 위해 공부하게됨
 
 
@@ -31,7 +31,7 @@
 ### 코드
 1. DB 연결
 ```
-   @Slf4j
+@Slf4j
 public class DBConnectionUtil {
 
 	//java가 제공하는 기본 커넥션
@@ -226,4 +226,185 @@ class MemberRepositoryV0Test {
 -> 이와 같이 여러가지 방법으로 커넥션을 획득 할 수 있다.
 -> 이러한 방법을 추상화 시킴!!!!(공통적인 핵심 기능을 집중 시킴)
 -> 이게 DataSoruce
--> 필요한 부분을 직접 구현하면 됨 
+-> 필요한 부분을 직접 구현하면 됨
+
+
+### DriverManager vs DataSource 의 차이
+
+DriverManger
+```
+Connection con1 = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+		Connection con2 = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+		log.info("connection = {}, class = {}", con1, con1.getClass());
+		log.info("connection = {}, class = {}", con2, con2.getClass());
+```
+connection 생성시마다 파라미터 넘겨줌
+
+Datasource
+```
+@Test
+	public void dataSourceDriverManager() throws SQLException {
+		//DriverManagerDatasource - 항상 새로운 커넥션을 획득(spring에서 제공하는 jdbc data source)
+		//datasource를 구현함으로(drivermanger) -> 이걸로 받을 수 있다.
+
+		//초기 datasource 객체 생성에만 파라미터를 넘기고 추후 connection 만 갖고옴
+		DataSource dataSource = new DriverManagerDataSource(URL, USERNAME, PASSWORD);
+		userDataSource(dataSource);
+	}
+
+	private void userDataSource(DataSource dataSource) throws SQLException {
+		Connection con1 = dataSource.getConnection();
+		Connection con2 = dataSource.getConnection();
+		log.info("connection = {}, class = {}", con1, con1.getClass());
+		log.info("connection = {}, class = {}", con2, con2.getClass());
+	}
+```
+초기 datasource 객체 생성시에만 파라미터 한번만 넘겨주면됨
+추후 getconnection으로 연결만 획득
+ -> 연결 생성과 호출을 분리 할 수 있다!
+
+### connection Pool 생성하기
+
+````
+	@Test
+	public void dataSourceConnectionPool() throws SQLException, InterruptedException {
+		//커넥션 풀링
+		HikariDataSource dataSource = new HikariDataSource();
+		dataSource.setJdbcUrl(URL);
+		dataSource.setUsername(USERNAME);
+		dataSource.setPassword(PASSWORD);
+		dataSource.setMaximumPoolSize(10);
+		dataSource.setPoolName("MyPool");
+
+		userDataSource(dataSource);
+		Thread.sleep(1000);
+	}
+````
+Hikari dataSource로 생성된 것을 확인 할 수 있음 connection Pool 10개로 지정했음으로 아래 로그에서 10개 모두 위에 설정한 컨넥션으로 설정됨을 알 수 있다.
+Thread.sleep을 걸지않으면 로딩이 너무 빠르게 지나가 아래 로그를 확인할 수 없음 
+컨넥션 풀 채울시 -> 별도의 스레드를 사용(애플리케이션 실행시간 영향 안주기 위해)
+
+hikari가 관리하고 있는 컨넥션 
+````
+13:58:54.181 [Test worker] INFO hello.jdbc.connection.ConnectionTest - connection = HikariProxyConnection@416201381 wrapping conn0: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class = class com.zaxxer.hikari.pool.HikariProxyConnection
+13:58:54.181 [Test worker] INFO hello.jdbc.connection.ConnectionTest - connection = HikariProxyConnection@1178290888 wrapping conn1: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class = class com.zaxxer.hikari.pool.HikariProxyConnection
+````
+
+
+````
+13:52:03.198 [MyPool housekeeper] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Pool stats (total=2, active=2, idle=0, waiting=0)
+13:52:03.206 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn2: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.210 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn3: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.214 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn4: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.233 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn5: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.238 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn6: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.239 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn7: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.241 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn8: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+13:52:03.242 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - Added connection conn9: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA
+
+/**
+이부분이 위에서 지정한 총 10개의 컨넥선 풀이 생성되었음을 알려줌
+**/
+13:52:03.242 [MyPool connection adder] DEBUG com.zaxxer.hikari.pool.HikariPool - MyPool - After adding stats (total=10, active=2, idle=8, waiting=0)
+````
+
+만일 connection이 설정한 값보다 더 많이 호출 된다면 -> 컨넥션 반환될 떄까지 대기 상태 들어감 -> 설정을 통해 수정할 수 있음
+
+
+### DataSource, JdbcUtils 사용(MemberRepositoryV1)
+
+````
+@Slf4j
+public class MemberRepositoryV1 {
+
+	private final DataSource dataSource;
+
+	public MemberRepositoryV1(DataSource dataSource) {
+		this.dataSource = dataSource;
+	}
+````
+datasource 주입 받음 
+
+````
+//사용한 자원들을 모두 닫아줘야 한다.
+	private void close(Connection con, Statement statement, ResultSet resultSet) {
+		/**
+		 * JdbcUtils가 제공하는 close 메소드를 통해 try catch 문을 사용하지 않고 연결을 종료 할 수 있다.
+		 */
+		JdbcUtils.closeResultSet(resultSet);
+		JdbcUtils.closeStatement(statement);
+		JdbcUtils.closeConnection(con);
+````
+연결 종료시 JdbcUtils에서 제공하는 메소드를 이용해서 종₩
+
+````
+	/**
+	 * datasource에서 
+	 * @return
+	 * @throws SQLException
+	 */
+	private Connection getConnection() throws SQLException {
+		Connection con = dataSource.getConnection();
+		log.info("get conneciton={}, class={}");
+		return con;
+	}
+````
+connection 획득시 datasource에서 갖고옴 
+
+
+### DriverManager로 호출시
+
+호출 때마다 새로운 컨넥션을 생성함 -> 느려짐(MemberRepositoryV1Test)
+````
+ @BeforeEach
+ void beforeEach() {
+     //기본 DriverManager - 항상 새로운 커넥션을 획득
+     DriverManagerDataSource dataSource = new DriverManagerDataSource(URL, USERNAME, PASSWORD);
+     memberRepositoryV1 = new MemberRepositoryV1(dataSource);
+ }
+````
+
+````
+14:30:39.416 [Test worker] DEBUG org.springframework.jdbc.datasource.DriverManagerDataSource - Creating new JDBC DriverManager Connection to [jdbc:h2:tcp://localhost/~/jdbcTest]
+14:30:39.418 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=conn2: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:30:39.418 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - resultSize=1
+14:30:39.419 [Test worker] DEBUG org.springframework.jdbc.datasource.DriverManagerDataSource - Creating new JDBC DriverManager Connection to [jdbc:h2:tcp://localhost/~/jdbcTest]
+14:30:39.419 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=conn3: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:30:39.422 [Test worker] DEBUG org.springframework.jdbc.datasource.DriverManagerDataSource - Creating new JDBC DriverManager Connection to [jdbc:h2:tcp://localhost/~/jdbcTest]
+14:30:39.423 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=conn4: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:30:39.424 [Test worker] DEBUG org.springframework.jdbc.datasource.DriverManagerDataSource - Creating new JDBC DriverManager Connection to [jdbc:h2:tcp://localhost/~/jdbcTest]
+14:30:39.424 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=conn5: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+````
+creating new JDBC DriverMAanger Connection이라는 문구를 확인할 수 있다
+
+
+### Connection Pool 사용시
+````
+ /**
+  * 히카리 컨넥션 풀링 사용
+  */
+ @BeforeEach
+ void beforeEach() {
+     HikariDataSource dataSource = new HikariDataSource();
+     dataSource.setJdbcUrl(URL);
+     dataSource.setUsername(USERNAME);
+     dataSource.setPassword(PASSWORD);
+
+     memberRepositoryV1 = new MemberRepositoryV1(dataSource);
+ }
+````
+
+````
+14:35:38.735 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=HikariProxyConnection@36531985 wrapping conn0: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:35:38.735 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - resultSize=1
+14:35:38.735 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=HikariProxyConnection@815336475 wrapping conn0: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:35:38.737 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=HikariProxyConnection@951988316 wrapping conn0: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+14:35:38.739 [Test worker] INFO hello.jdbc.repository.MemberRepositoryV1 - get conneciton=HikariProxyConnection@1434066477 wrapping conn0: url=jdbc:h2:tcp://localhost/~/jdbcTest user=SA, class=class hello.jdbc.repository.MemberRepositoryV1
+````
+
+wrapping coon0 이 모두 conn0 만 사용됨을 알 수 있다. 
+왜?
+-> connection pool 은 close() 호출시 connection을 종료하는 것이 아닌, 반환을 한다
+따라서 반환된 connection을 계속 사용 했기 때문에 저런 현상이 발생!
+객체 인스턴스 주소는 다르지만 컨넥션은 같다!!
+proxy 객체 생성 -> 컨넥션 담고 연결 -> 반환
