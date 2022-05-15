@@ -441,3 +441,31 @@ DB 내에서 커넥션을 통해 세션이 만들어지고 이후 이 세션을 
 
 만약 다른 세션에서 변경된 데이터가 보인다면?(커밋 전)
 -> 데이터 정합성에 문제가 생길 수 있다!
+
+### 자동커밋
+쿼리 실행시 자동으로 커밋이됨(쿼리마다 실행 ) -> 우리가 원하는 트랜잭션 기능을 제대로 사용할 수 없다.
+````
+ set autocommit true; //자동 커밋 모드 설정
+insert into member(member_id, money) values ('data1',10000); //자동 커밋 
+insert into member(member_id, money) values ('data2',10000); //자동 커밋
+````
+
+### 수동커밋
+수동커밋으로 설정 -> 트랜잭션을 시작한다고 할 수 있음
+
+````
+set autocommit false; //수동 커밋 모드 설정
+insert into member(member_id, money) values ('data3',10000);
+insert into member(member_id, money) values ('data4',10000); 
+commit; //수동 커밋
+````
+
+### 확인
+h2 session1, 2 각각 띄어놓는다
+
+````
+//트랜잭션 시작
+set autocommit false; //수동 커밋 모드
+insert into member(member_id, money) values ('newId1',10000); 
+insert into member(member_id, money) values ('newId2',10000);
+````
