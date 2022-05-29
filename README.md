@@ -469,3 +469,13 @@ set autocommit false; //수동 커밋 모드
 insert into member(member_id, money) values ('newId1',10000); 
 insert into member(member_id, money) values ('newId2',10000);
 ````
+
+### DB 락 조회
+
+select for update 구문을 사용
+
+어떨 때 사용?
+
+복잡한 로직을 통해 계산을 수행 중 해당 값이 계산 중간에 변경이 되면 안되는 경우
+조회에 락을 걸어 해결 할 수 도 있다.
+
